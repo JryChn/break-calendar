@@ -1,15 +1,16 @@
 use std::collections::HashMap;
-use std::fmt::Error;
-use chrono::{DateTime, NaiveDateTime, Utc};
+
+use chrono::Utc;
+
 use crate::core::model::event::Event;
 use crate::core::model::reminder::Reminder;
 use crate::persistence::{CommonEvent, DaoOperation};
 
-struct CACHE{
+pub struct CACHE {
     last_update_time: i64,
     persistent_engine: dyn DaoOperation,
-    events: HashMap<i64,Vec<Event>>,
-    reminder: Vec<Reminder>,
+    pub events: HashMap<i64, Vec<Event>>,
+    pub reminder: Vec<Reminder>,
 }
 
 
@@ -23,14 +24,16 @@ impl CACHE{
         }
     }
 
-     pub async fn save(&self) -> Result<Ok(_),Err(Error)>{
-         let events:Vec<Event> = self.events.iter().flat_map(|events|{events.1}).map(
+    pub async fn save(&self) -> anyhow::Result<Vec<u128>> {
+        let mut events: Vec<CommonEvent> = self.events.iter().flat_map(|events| { events.1 }).map(
              |e|{
-                 let dao_event = CommonEvent{};
+                 let dao_event = CommonEvent;
                  super::convertor::event::EventConvertor::convert_from_business_2_dao(&e,dao_event)
              }
          ).collect();
-         events.sort_by();
+        events.sort_by(|a, b| { a.start_time.cmp(&b.start_time) });
          self.persistent_engine.save_mul_events(events)?
     }
+
+    pub async fn load(&self) -> anyhow::Result<()> {}
 }

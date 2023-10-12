@@ -26,7 +26,6 @@ pub struct CommonEvent {
     pub end_time: i64,
     pub tags: Vec<String>,
 }
-
 pub struct CustomInfo {
     pub id: u128,
     pub name: String,

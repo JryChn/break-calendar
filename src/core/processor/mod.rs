@@ -1,15 +1,21 @@
-use std::process::id;
-use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
+use std::rc::Rc;
+use std::sync::Mutex;
+
+use chrono::{DateTime, Utc};
+use lazy_static::lazy_static;
+
 use crate::api::model::{ApiCustomInformation, ApiEvent};
-use crate::core::convertor::event::EventConvertor;
-use crate::core::handler::event_handler::{check_if_conflict, create_repeated_events};
+use crate::core::cache::CACHE;
 use crate::core::model::custom_info::CustomInfo;
-use crate::core::model::event::AllocateRestriction;
 use crate::persistence::file_system::FileSystemPersistence;
 
 const DEFAULT_MAX_ALLOCATE_TIMES: u8 = 30;
 
-fn create_new_event(api_event:ApiEvent) -> Vec<u128>{
+lazy_static!(
+    static ref buffer : Mutex= Mutex::new(Rc::new(CACHE::new(FileSystemPersistence::init())));
+);
+
+fn create_new_event(api_event: ApiEvent) -> Vec<u128> {
     // create new business event
     // convert api event to business event
     // check business event if conflict
@@ -20,44 +26,44 @@ fn create_new_event(api_event:ApiEvent) -> Vec<u128>{
 }
 
 
-
-fn fetch_event_by_id(id:u128) -> Vec<ApiEvent>{
-    // find by id
-    // return
-    todo!()
-}
-fn fetch_event_by_series_id(id:u128) -> Vec<ApiEvent> {
+fn fetch_event_by_id(id: u128) -> Vec<ApiEvent> {
     // find by id
     // return
     todo!()
 }
 
-fn fetch_events_in_day(day:DateTime<Utc>) -> Vec<ApiEvent>{
+fn fetch_event_by_series_id(id: u128) -> Vec<ApiEvent> {
+    // find by id
+    // return
+    todo!()
+}
+
+fn fetch_events_in_day(day: DateTime<Utc>) -> Vec<ApiEvent> {
     // find by day
     //return
     todo!()
 }
 
-fn fetch_events_in_week(week:DateTime<Utc>) -> Vec<ApiEvent>{
+fn fetch_events_in_week(week: DateTime<Utc>) -> Vec<ApiEvent> {
     // find by week
     // return
     todo!()
 }
 
-fn fetch_events_in_month(month:DateTime<Utc>) -> Vec<ApiEvent>{
+fn fetch_events_in_month(month: DateTime<Utc>) -> Vec<ApiEvent> {
     // find by month
     // return
     todo!()
 }
 
-fn fetch_events_in_year(year:DateTime<Utc>) -> Vec<ApiEvent>{
+fn fetch_events_in_year(year: DateTime<Utc>) -> Vec<ApiEvent> {
     // find by year
     // return
     todo!()
 }
 
 
-fn update_event(api_event:ApiEvent) -> Vec<u128>{
+fn update_event(api_event: ApiEvent) -> Vec<u128> {
     // find by id
     // update mut field
     // save
@@ -65,7 +71,7 @@ fn update_event(api_event:ApiEvent) -> Vec<u128>{
     todo!()
 }
 
-fn delete_event(id:u128){
+fn delete_event(id: u128) {
 
     // find by id
     // delete
@@ -73,14 +79,14 @@ fn delete_event(id:u128){
     todo!()
 }
 
-fn delete_series_events(series_id:u128){
+fn delete_series_events(series_id: u128) {
     // find by series id
     // delete multiple
     // save
     todo!()
 }
 
-fn delete_series_events_after_one_event(series_id:u128,id:u128){
+fn delete_series_events_after_one_event(series_id: u128, id: u128) {
     // find by series id
     // filter after one day
     // delete multiple
@@ -88,18 +94,18 @@ fn delete_series_events_after_one_event(series_id:u128,id:u128){
 }
 
 
-fn create_new_custom_info(api_info:ApiCustomInformation) -> u128{
+fn create_new_custom_info(api_info: ApiCustomInformation) -> u128 {
     todo!()
 }
 
-fn fetch_custom_info(id:u128) -> CustomInfo{
+fn fetch_custom_info(id: u128) -> CustomInfo {
     todo!()
 }
 
-fn fetch_all_custom_info() -> Vec<CustomInfo>{
+fn fetch_all_custom_info() -> Vec<CustomInfo> {
     todo!()
 }
 
-fn delete_custom_info(id:u128){
+fn delete_custom_info(id: u128) {
     todo!()
 }
