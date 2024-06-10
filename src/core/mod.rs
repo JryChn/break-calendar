@@ -1,16 +1,10 @@
-// use anyhow::{bail, Result};
-// use chrono::{DateTime, Duration, FixedOffset, NaiveDate, TimeDelta, TimeZone, Utc};
-// use crate::common::exception::InternalError;
-// 
-// use crate::core::processor::{dynamic_process, static_process};
-// use crate::model::event::Event;
-// use crate::model::generator_instance::{GeneratorInstance, Repeat, RepeatStrategy};
-// use crate::model::reminder::Reminder;
-// use crate::model::EventCommonTrait;
-// 
-// mod delayQueue;
-// mod executorPool;
-// mod processor;
+use chrono::TimeZone;
+
+use crate::model::EventCommonTrait;
+
+mod delayQueue;
+mod executorPool;
+mod processor;
 // 
 // pub fn create_events(
 //     event: Event,
@@ -54,8 +48,8 @@
 //     )
 // }
 // 
-// pub fn get_events_by_day(date: DateTime<FixedOffset>) -> Vec<Event> {
-//     static_process(|e| e.get_events(Some(date), None)).unwrap()
+// pub fn get_events_by_day(date: DateTime<FixedOffset>) -> Vec<Arc<Box<Event>>> {
+//     static_process(|e| e.get_all_events::<Event>())
 // }
 // 
 // pub fn get_all_events() -> Vec<Event> {

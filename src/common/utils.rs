@@ -1,5 +1,5 @@
-use std::rc::Rc;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime};
 use lazy_static::lazy_static;
@@ -30,8 +30,8 @@ pub fn get_all_day_numbers() -> i64 {
 }
 
 pub fn check_conflict(
-    events: &Vec<Rc<Box<dyn EventCommonTrait>>>,
-) -> Vec<(Rc<Box<dyn EventCommonTrait>>, Rc<Box<dyn EventCommonTrait>>)> {
+    events: &Vec<Arc<Box<dyn EventCommonTrait>>>,
+) -> Vec<(Arc<Box<dyn EventCommonTrait>>, Arc<Box<dyn EventCommonTrait>>)> {
     let mut result = Vec::new();
     for i in 0..events.len() {
         for j in 0..events.len() {

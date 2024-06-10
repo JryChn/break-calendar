@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::ops::{Add, Sub};
-use std::rc::Rc;
+use std::sync::Arc;
 
 use anyhow::bail;
 use anyhow::Result;
@@ -17,9 +17,9 @@ mod test;
 pub struct Cache {
     // cache only care about conflict, event valid and other self check not here
     properties: Properties,
-    events_all: Vec<Rc<Box<dyn EventCommonTrait>>>,
-    events_by_date: HashMap<NaiveDate, Vec<Rc<Box<dyn EventCommonTrait>>>>,
-    events_by_id: HashMap<u128, Rc<Box<dyn EventCommonTrait>>>,
+    events_all: Vec<Arc<Box<dyn EventCommonTrait>>>,
+    events_by_date: HashMap<NaiveDate, Vec<Arc<Box<dyn EventCommonTrait>>>>,
+    events_by_id: HashMap<u128, Arc<Box<dyn EventCommonTrait>>>,
     instance: HashMap<u128, GeneratorInstance>,
 }
 
@@ -49,7 +49,7 @@ impl Cache {
 
     pub fn insert_events(&mut self, events: Vec<Box<dyn EventCommonTrait>>) -> Result<()> {
         for event in events {
-            let event = Rc::new(event);
+            let event = Arc::new(event);
             let mut date_event_vec = Vec::new();
             date_event_vec.push(event.clone());
             let start_date = event.get_start_time().naive_utc().date();
@@ -121,7 +121,7 @@ impl Cache {
         Ok(())
     }
 
-    pub fn get_events_by_day<E: EventCommonTrait>(&self, day: NaiveDate) -> Vec<Rc<Box<&E>>> {
+    pub fn get_events_by_day<E: EventCommonTrait>(&self, day: NaiveDate) -> Vec<Arc<Box<&E>>> {
         self.events_by_date
             .get(&day)
             .unwrap()
@@ -131,12 +131,12 @@ impl Cache {
                 if e.is_none() {
                     return None;
                 } else {
-                    Some(Rc::new(Box::new(e.unwrap())))
+                    Some(Arc::new(Box::new(e.unwrap())))
                 }
             })
             .collect()
     }
-    pub fn get_events_by_id<E: EventCommonTrait>(&self, id: u128) -> Result<Rc<Box<&E>>> {
+    pub fn get_events_by_id<E: EventCommonTrait>(&self, id: u128) -> Result<Arc<Box<&E>>> {
         let result = self.events_by_id.get(&id);
         if result.is_none() {
             bail!(InternalError::EventNotFoundError)
@@ -146,10 +146,10 @@ impl Cache {
         if result.is_none() {
             bail!(InternalError::EventNotFoundError)
         }
-        Ok(Rc::new(Box::new(result.unwrap())))
+        Ok(Arc::new(Box::new(result.unwrap())))
     }
 
-    pub fn get_all_events<E: EventCommonTrait>(&self) -> Vec<Rc<Box<&E>>> {
+    pub fn get_all_events<E: EventCommonTrait>(&self) -> Vec<Arc<Box<&E>>> {
         self.events_all
             .iter()
             .filter_map(|e| {
@@ -157,12 +157,12 @@ impl Cache {
                 if e.is_none() {
                     return None;
                 } else {
-                    Some(Rc::new(Box::new(e.unwrap())))
+                    Some(Arc::new(Box::new(e.unwrap())))
                 }
             })
             .collect()
     }
-    pub fn get_all_raw_events(&self) -> Vec<Rc<Box<dyn EventCommonTrait>>> {
+    pub fn get_all_raw_events(&self) -> Vec<Arc<Box<dyn EventCommonTrait>>> {
         self.events_all.clone()
     }
 

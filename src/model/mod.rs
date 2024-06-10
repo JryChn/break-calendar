@@ -12,7 +12,7 @@ pub mod event;
 pub mod generator_instance;
 pub mod reminder;
 
-pub trait EventCommonTrait: Downcast {
+pub trait EventCommonTrait: Downcast + Send + Sync {
     fn get_id(&self) -> u128;
     fn get_kind(&self) -> Kind;
     fn get_title(&self) -> &str;
