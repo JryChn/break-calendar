@@ -28,4 +28,8 @@ impl ProcessQueue {
         self.dynamic_process.lock().unwrap().push_back(func);
         Ok(())
     }
+
+    pub fn len(&self) -> usize {
+        return self.dynamic_process.lock().unwrap().len()
+    }
 }

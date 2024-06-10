@@ -60,15 +60,17 @@ pub fn dynamic_process<F: FnOnce(RwLockWriteGuard<Cache>) + Send + Copy + 'stati
     }
 }
 
-pub fn static_process<T: Clone, F: Fn(RwLockReadGuard<Cache>) -> T>(read_function: F) -> T {
+pub fn static_process<T: Clone, F: Fn(RwLockReadGuard<Cache>) -> T>(read_function: F) -> Result<T> {
     info!("start static process");
     let mut cache_reader = CACHE.try_read();
     if cache_reader.is_err() {
         thread::sleep(Duration::from_secs(3));
         cache_reader = CACHE.try_read();
     }
-    let cache_reader = cache_reader.unwrap();
-    read_function(cache_reader)
+    if cache_reader.is_err() {
+        bail!(InternalError::BusyCache)
+    }
+    Ok(read_function(cache_reader.unwrap()))
 }
 
 mod tests {
@@ -77,6 +79,7 @@ mod tests {
 
     use chrono::{DateTime, Utc};
 
+    use crate::core::delayQueue::PROCESS_QUEUE;
     use crate::core::processor::{CACHE, dynamic_process, static_process};
     use crate::model::event::Event;
     use crate::model::EventCommonTrait;
@@ -103,33 +106,55 @@ mod tests {
             .unwrap()
             .insert_events(vec![Box::new(event)])
             .unwrap();
-        let result = static_process(move |e| e.get_all_events::<Event>());
+        let result = static_process(move |e| e.get_all_events::<Event>().iter().map(|e| {
+            let e = **e.clone();
+            let e = e.clone();
+            e
+        }).collect::<Vec<Event>>());
+        let result = result.unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result.first().unwrap().get_id(), id);
     }
-    //
-    // #[test]
-    // fn test_static_process_with_multiple_read() {
-    //     let mut event = Event::init(None);
-    //     let id = event.get_id();
-    //     event.set_duration(DateTime::from(Utc::now()), DateTime::from(Utc::now()));
-    //     CACHE
-    //         .write()
-    //         .unwrap()
-    //         .insert_events(vec![Box::new(event)])
-    //         .unwrap();
-    //     let first_result = CACHE.read().unwrap().get_events_by_id::<Event>(id);
-    //     let result = static_process(|e| e.get_events_by_id::<Event>(id).unwrap().clone()).unwrap();
-    //     assert_eq!(result.get_id(), id);
-    // }
-    //
-    // #[test]
-    // fn test_process_conflict() {
-    //     let result = dynamic_process(|mut e| {
-    //         sleep(Duration::from_secs(10));
-    //     });
-    //     assert!(result.is_ok());
-    //     let result = dynamic_process(|mut e| {});
-    //     assert!(result.is_err())
-    // }
+
+    #[test]
+    fn test_static_process_with_multiple_read() {
+        let mut event = Event::init(None);
+        let id = event.get_id();
+        event.set_duration(DateTime::from(Utc::now()), DateTime::from(Utc::now()));
+        CACHE
+            .write()
+            .unwrap()
+            .insert_events(vec![Box::new(event)])
+            .unwrap();
+        let result = dynamic_process(|e| {
+            sleep(Duration::from_secs(10));
+        });
+        assert!(result.is_ok());
+        let first_result = static_process(|e| {
+            e.get_all_events::<Event>().iter().map(|e| {
+                let e = **e.clone();
+                let e = e.clone();
+                e
+            }).collect::<Vec<Event>>()
+        });
+        assert!(first_result.is_err());
+        sleep(Duration::from_secs(10));
+        let result = static_process(|e| e.get_events_by_id::<Event>(id).map(|e| {
+            let e = **e.clone();
+            let e = e.clone();
+            e
+        }).unwrap()).unwrap();
+        assert_eq!(result.get_id(), id);
+    }
+
+    #[test]
+    fn test_process_conflict() {
+        let result = dynamic_process(|e| {
+            sleep(Duration::from_secs(10));
+        });
+        assert!(result.is_ok());
+        let result = dynamic_process(|e| {});
+        assert!(result.is_err());
+        assert_eq!(PROCESS_QUEUE.lock().unwrap().len(), 1);
+    }
 }

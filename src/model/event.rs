@@ -5,6 +5,7 @@ use crate::model::{Category, EventCommonTrait, ImportantLevel, Kind};
 use crate::model::generator_instance::GeneratorInstance;
 use crate::persistent::PersistentModel;
 
+#[derive(Clone)]
 pub struct Event {
     id: u128,
     title: String,

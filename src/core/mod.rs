@@ -1,11 +1,16 @@
-use chrono::TimeZone;
+use std::sync::Arc;
 
+use chrono::{DateTime, FixedOffset, TimeZone};
+
+use crate::core::processor::static_process;
+use crate::model::event::Event;
 use crate::model::EventCommonTrait;
 
 mod delayQueue;
 mod executorPool;
 mod processor;
-// 
+
+//
 // pub fn create_events(
 //     event: Event,
 //     ignore_conflict: Option<bool>,
@@ -47,46 +52,55 @@ mod processor;
 //         (Vec::new())
 //     )
 // }
-// 
-// pub fn get_events_by_day(date: DateTime<FixedOffset>) -> Vec<Arc<Box<Event>>> {
-//     static_process(|e| e.get_all_events::<Event>())
-// }
-// 
+//
+pub fn get_events_by_day(date: DateTime<FixedOffset>) -> Vec<Arc<Box<Event>>> {
+    static_process(|e| {
+        e.get_events_by_day::<Event>(date.date_naive())
+            .into_iter()
+            .map(|event| {
+                let e = **event.clone();
+                let e = e.clone();
+                Arc::new(Box::new(e))
+            })
+            .collect::<Vec<Arc<Box<Event>>>>()
+    }).unwrap()
+}
+//
 // pub fn get_all_events() -> Vec<Event> {
 //     todo!()
 // }
-// 
+//
 // pub fn get_events_by_id(id: u128) -> Vec<Event> {
 //     static_process(|e| e.get_events::<Utc>(None, Some(id))).unwrap()
 // }
-// 
+//
 // pub fn update_events(events: Vec<Event>) -> Result<()> {
 //     todo!()
 // }
-// 
+//
 // pub fn delete_events_by_id(events_id: Vec<u128>) -> Result<()> {
 //     todo!()
 // }
 // pub fn delete_events_by_day(dates: Vec<NaiveDate>) -> Result<()> {
 //     todo!()
 // }
-// 
+//
 // pub fn create_new_reminder(events: Vec<Reminder>, ignore_conflict: bool) -> Vec<Reminder> {
 //     todo!()
 // }
-// 
+//
 // pub fn get_reminder_by_day(date: NaiveDate) -> Vec<Reminder> {
 //     todo!()
 // }
-// 
+//
 // pub fn get_reminder_by_id(id: u128) -> Vec<Reminder> {
 //     todo!()
 // }
-// 
+//
 // pub fn update_reminders(reminders: Vec<Reminder>) -> Result<()> {
 //     todo!()
 // }
-// 
+//
 // pub fn delete_reminders_by_id(reminders_id: Vec<u128>) -> Result<()> {
 //     todo!()
 // }
