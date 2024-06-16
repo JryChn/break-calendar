@@ -22,7 +22,7 @@ pub const DEFAULT_FILE_NAME: &str = "metadata";
 pub struct FilePersistenceSystem;
 
 impl FilePersistenceSystem {
-    pub fn save(cache: &Cache, file_path: Option<String>) -> Result<()> {
+    pub async fn save(cache: &Cache, file_path: Option<String>) -> Result<()> {
         let file_name = file_path.unwrap_or(DEFAULT_FILE_NAME.to_string());
         let file = check_if_file_exists(file_name)?;
         let event_cache = cache
@@ -45,7 +45,7 @@ impl FilePersistenceSystem {
         Ok(())
     }
 
-    pub fn load(file_path: Option<String>) -> Result<Cache> {
+    pub async fn load(file_path: Option<String>) -> Result<Cache> {
         let file_name = file_path.unwrap_or(DEFAULT_FILE_NAME.to_string());
         let file = check_if_file_exists(file_name)?;
         let mut decoder = GzDecoder::new(file);

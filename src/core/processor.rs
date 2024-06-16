@@ -1,23 +1,23 @@
-use std::sync::{Arc, mpsc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
-use std::thread;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::bail;
 use anyhow::Result;
+use futures::executor::block_on;
 use lazy_static::lazy_static;
-use tracing::info;
+use tokio::spawn;
+use tokio::sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use tokio::time::timeout;
+use tracing::{info, warn};
 
 use crate::cache::Cache;
 use crate::common::exception::InternalError;
-use crate::core::delayQueue::PROCESS_QUEUE;
-use crate::core::executorPool::EXECUTOR_POOL;
-use crate::model::EventCommonTrait;
 use crate::persistent::Persistent;
 
 lazy_static! {
-    static ref PERSISTENT_SYSTEM: Persistent = Persistent::init();
+    static ref PERSISTENT_SYSTEM: Mutex<Persistent> = Mutex::new(Persistent::init());
     static ref CACHE: Arc<RwLock<Cache>> = {
-        let cache = PERSISTENT_SYSTEM.load();
+        let cache = block_on(block_on(PERSISTENT_SYSTEM.lock()).load());
         Arc::new(RwLock::new(if cache.is_ok() {
             cache.unwrap()
         } else {
@@ -26,135 +26,147 @@ lazy_static! {
     };
 }
 
-pub fn dynamic_process<F: FnOnce(RwLockWriteGuard<Cache>) + Send + Copy + 'static>(
+pub async fn dynamic_process<F: FnOnce(RwLockWriteGuard<Cache>) + Send + 'static>(
     process_func: F,
 ) -> Result<()> {
     info!("start dynamic process");
-    let (tx, rx) = mpsc::channel();
-    EXECUTOR_POOL.execute(move || {
-        let dynamic_func = Arc::new(Mutex::new(process_func));
-        let mut cache_lock = CACHE.try_write();
-        if cache_lock.is_err() {
-            thread::sleep(Duration::from_secs(3));
-            cache_lock = CACHE.try_write();
-            if cache_lock.is_err() {
-                let dynamic_func = Arc::clone(&dynamic_func);
-                PROCESS_QUEUE
-                    .lock()
-                    .unwrap()
-                    .add_to_queue(dynamic_func)
-                    .expect("Error when add to queue");
-                tx.send(false).unwrap();
-                return;
-            }
+    let result = async {
+        info!("try to get cache write lock");
+        let cache = CACHE.write().await;
+        info!("get cache write lock success");
+        async {
+            process_func(cache);
+        }.await
+    };
+    match timeout(Duration::from_secs(3), result).await {
+        Ok(_) => {
+            info!("dynamic process success");
+            let cache_replicas = CACHE.clone();
+            spawn(async move {
+                let cache = cache_replicas.read().await;
+                let persistent = PERSISTENT_SYSTEM.lock().await;
+                persistent
+                    .save(&*cache)
+                    .await
+                    .expect("save cache failed");
+                drop(cache);
+            });
+            Ok(())
         }
-        tx.send(true).unwrap();
-        let cache_writer = cache_lock.unwrap();
-        let dynamic_func = Arc::clone(&dynamic_func);
-        dynamic_func.lock().unwrap()(cache_writer);
-    });
-    if rx.recv().unwrap() {
-        Ok(())
-    } else {
-        bail!(InternalError::BusyCache)
+        Err(_) => {
+            warn!("dynamic process timeout");
+            bail!(InternalError::BusyCache)
+        }
     }
 }
 
-pub fn static_process<T: Clone, F: Fn(RwLockReadGuard<Cache>) -> T>(read_function: F) -> Result<T> {
+pub async fn static_process<T: Clone, F: Fn(RwLockReadGuard<Cache>) -> T>(
+    read_function: F,
+) -> Result<T> {
     info!("start static process");
-    let mut cache_reader = CACHE.try_read();
-    if cache_reader.is_err() {
-        thread::sleep(Duration::from_secs(3));
-        cache_reader = CACHE.try_read();
-    }
-    if cache_reader.is_err() {
-        bail!(InternalError::BusyCache)
-    }
-    Ok(read_function(cache_reader.unwrap()))
+    let cache_reader = CACHE.read().await;
+    Ok(read_function(cache_reader))
 }
 
 mod tests {
-    use std::thread::sleep;
+    use std::thread;
     use std::time::Duration;
 
     use chrono::{DateTime, Utc};
+    use futures::executor::block_on;
+    use tokio::join;
+    use tokio::time::sleep;
 
-    use crate::core::delayQueue::PROCESS_QUEUE;
     use crate::core::processor::{CACHE, dynamic_process, static_process};
     use crate::model::event::Event;
     use crate::model::EventCommonTrait;
 
-    #[test]
-    fn test_dynamic_process() {
+    #[tokio::test]
+    async fn test_dynamic_process() {
         let result = dynamic_process(|mut e| {
             let mut event = Event::init(None);
             event.set_duration(DateTime::from(Utc::now()), DateTime::from(Utc::now()));
             e.insert_events(vec![Box::new(event)]).unwrap()
         });
-        assert!(result.is_ok());
-        sleep(Duration::from_secs(3));
-        assert!(CACHE.read().unwrap().get_all_events::<Event>().len() > 0);
+        assert!(result.await.is_ok());
+        assert!(CACHE.read().await.get_all_events::<Event>().len() > 0);
     }
 
-    #[test]
-    fn test_static_process() {
+    #[tokio::test]
+    async fn test_static_process() {
         let mut event = Event::init(None);
         let id = event.get_id();
         event.set_duration(DateTime::from(Utc::now()), DateTime::from(Utc::now()));
         CACHE
             .write()
-            .unwrap()
+            .await
             .insert_events(vec![Box::new(event)])
             .unwrap();
-        let result = static_process(move |e| e.get_all_events::<Event>().iter().map(|e| {
-            let e = **e.clone();
-            let e = e.clone();
-            e
-        }).collect::<Vec<Event>>());
+        let result = static_process(move |e| {
+            e.get_all_events::<Event>()
+                .iter()
+                .map(|e| {
+                    let e = **e.clone();
+                    let e = e.clone();
+                    e
+                })
+                .collect::<Vec<Event>>()
+        })
+            .await;
         let result = result.unwrap();
         assert_eq!(result.len(), 1);
         assert_eq!(result.first().unwrap().get_id(), id);
     }
 
-    #[test]
-    fn test_static_process_with_multiple_read() {
+    #[tokio::test]
+    async fn test_static_process_with_multiple_read() {
         let mut event = Event::init(None);
         let id = event.get_id();
         event.set_duration(DateTime::from(Utc::now()), DateTime::from(Utc::now()));
         CACHE
             .write()
-            .unwrap()
+            .await
             .insert_events(vec![Box::new(event)])
             .unwrap();
-        let result = dynamic_process(|e| {
-            sleep(Duration::from_secs(10));
-        });
+        let result = dynamic_process(|_| {
+            block_on(sleep(Duration::from_secs(10)));
+        })
+            .await;
         assert!(result.is_ok());
         let first_result = static_process(|e| {
-            e.get_all_events::<Event>().iter().map(|e| {
-                let e = **e.clone();
-                let e = e.clone();
-                e
-            }).collect::<Vec<Event>>()
-        });
-        assert!(first_result.is_err());
-        sleep(Duration::from_secs(10));
-        let result = static_process(|e| e.get_events_by_id::<Event>(id).map(|e| {
-            let e = **e.clone();
-            let e = e.clone();
-            e
-        }).unwrap()).unwrap();
+            e.get_all_events::<Event>()
+                .iter()
+                .map(|e| {
+                    let e = **e.clone();
+                    let e = e.clone();
+                    e
+                })
+                .collect::<Vec<Event>>()
+        })
+            .await;
+        assert!(first_result.is_ok());
+        let result = static_process(|e| {
+            e.get_events_by_id::<Event>(id)
+                .map(|e| {
+                    let e = **e.clone();
+                    let e = e.clone();
+                    e
+                })
+                .unwrap()
+        })
+            .await
+            .unwrap();
         assert_eq!(result.get_id(), id);
     }
 
-    #[test]
-    fn test_process_conflict() {
-        let result = dynamic_process(|e| {
-            sleep(Duration::from_secs(10));
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_process_conflict() {
+        let result_0 = dynamic_process(|_| {
+            thread::sleep(Duration::from_secs(10));
         });
-        assert!(result.is_ok());
-        let result = dynamic_process(|e| {});
-        assert!(result.is_err());
-        assert_eq!(PROCESS_QUEUE.lock().unwrap().len(), 1);
+        let result_1 = dynamic_process(|_| {});
+        let (a, b) = join!(result_0, result_1);
+        assert!(a.is_ok());
+        assert!(b.is_err());
     }
 }

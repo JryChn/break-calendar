@@ -1,12 +1,7 @@
-use std::sync::Arc;
+use chrono::TimeZone;
 
-use chrono::{DateTime, FixedOffset, TimeZone};
-
-use crate::core::processor::static_process;
-use crate::model::event::Event;
 use crate::model::EventCommonTrait;
 
-mod delayQueue;
 mod executorPool;
 mod processor;
 
@@ -53,18 +48,18 @@ mod processor;
 //     )
 // }
 //
-pub fn get_events_by_day(date: DateTime<FixedOffset>) -> Vec<Arc<Box<Event>>> {
-    static_process(|e| {
-        e.get_events_by_day::<Event>(date.date_naive())
-            .into_iter()
-            .map(|event| {
-                let e = **event.clone();
-                let e = e.clone();
-                Arc::new(Box::new(e))
-            })
-            .collect::<Vec<Arc<Box<Event>>>>()
-    }).unwrap()
-}
+// pub fn get_events_by_day(date: DateTime<FixedOffset>) -> Vec<Arc<Box<Event>>> {
+//     static_process(|e| {
+//         e.get_events_by_day::<Event>(date.date_naive())
+//             .into_iter()
+//             .map(|event| {
+//                 let e = **event.clone();
+//                 let e = e.clone();
+//                 Arc::new(Box::new(e))
+//             })
+//             .collect::<Vec<Arc<Box<Event>>>>()
+//     }).unwrap()
+// }
 //
 // pub fn get_all_events() -> Vec<Event> {
 //     todo!()

@@ -11,7 +11,8 @@ mod tests {
     use crate::model::EventCommonTrait;
     use crate::persistent::file_system::{DEFAULT_FILE_NAME, FilePersistenceSystem};
 
-    #[test]
+    #[tokio::test]
+    async
     fn save_load_cache_successfully() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join(DEFAULT_FILE_NAME);
@@ -23,9 +24,9 @@ mod tests {
         let end_time = DateTime::from(Utc::now());
         event.set_duration(start_time, end_time);
         cache.insert_events(vec![Box::new(event)]).unwrap();
-        FilePersistenceSystem::save(&cache, file_path.clone()).unwrap();
+        FilePersistenceSystem::save(&cache, file_path.clone()).await;
 
-        let loaded_cache = FilePersistenceSystem::load(file_path).unwrap();
+        let loaded_cache = FilePersistenceSystem::load(file_path).await.unwrap();
 
         assert_eq!(id, loaded_cache.get_events_by_id::<Event>(id).unwrap().get_id());
         assert_eq!(
@@ -38,7 +39,8 @@ mod tests {
         );
     }
 
-    #[test]
+    #[tokio::test]
+    async
     fn save_fails_when_cannot_write_to_file() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join(DEFAULT_FILE_NAME);
@@ -49,12 +51,13 @@ mod tests {
         let file_path = Some(file_path.to_str().unwrap().to_string());
 
         let cache = Cache::init();
-        let result = FilePersistenceSystem::save(&cache, file_path);
+        let result = FilePersistenceSystem::save(&cache, file_path).await;
 
         assert!(result.is_err());
     }
 
-    #[test]
+    #[tokio::test]
+    async
     fn load_fails_when_cannot_read_from_file() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join(DEFAULT_FILE_NAME);
@@ -64,7 +67,7 @@ mod tests {
         fs::set_permissions(&file_path, permissions).unwrap();
         let file_path = Some(file_path.to_str().unwrap().to_string());
 
-        let result = FilePersistenceSystem::load(file_path);
+        let result = FilePersistenceSystem::load(file_path).await;
 
         assert!(result.is_err());
     }

@@ -17,11 +17,11 @@ impl Persistent {
     pub fn init() -> Self {
         Persistent
     }
-    pub fn save(&self, cache: &Cache) -> Result<()> {
-        FilePersistenceSystem::save(cache, None)
+    pub async fn save(&self, cache: &Cache) -> Result<()> {
+        FilePersistenceSystem::save(cache, None).await
     }
-    pub fn load(&self) -> Result<Cache> {
-        FilePersistenceSystem::load(None)
+    pub async fn load(&self) -> Result<Cache> {
+        FilePersistenceSystem::load(None).await
     }
 }
 
